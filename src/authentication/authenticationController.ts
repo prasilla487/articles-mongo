@@ -1,10 +1,12 @@
-import { controllerInterface } from '../interfaces';
+import { controllerInterface , TokenData, DataStoredInToken, User} from '../interfaces';
 import * as express from 'express';
 import { userModel } from '../models';
 import { CreateUserDto } from './user.dto';
 import * as bcrypt from 'bcrypt';
 import { validationMiddleware , Logger } from '../middlewares';
-import { CredentialsInCorrect, UserExistsException } from '../exceptions'
+import { CredentialsInCorrect, UserExistsException } from '../exceptions';
+import * as jwt from 'jsonwebtoken';
+
 
 export default class AuthenticationController implements controllerInterface{
     public path = '/auth'
@@ -26,11 +28,13 @@ export default class AuthenticationController implements controllerInterface{
         if(isUserExists){
             next(new UserExistsException(userData.email))
         }else{
-            console.log(userData.password)
+            this.log.info(`registering the user with mail ${userData.email}`);
             let hashedPassword = await bcrypt.hash(userData.password, 10)
-            await this.userModel.create({...userData, password : hashedPassword})
+            let user = await this.userModel.create({...userData, password : hashedPassword})
+            this.log.info(`Getting token`);
+            let token = await this.createToken(user);
             userData.password = undefined;
-            response.send(userData);
+            response.send({ ...userData, ...token});
         }
     }
 
@@ -41,12 +45,22 @@ export default class AuthenticationController implements controllerInterface{
         if(userExists){
             const isPasswordMatched = await bcrypt.compare(userData.password, userExists.password);
             if(isPasswordMatched){
-                response.send("sucess")
+                let tokenResponse : TokenData = await this.createToken(userExists);
+                response.send(tokenResponse)
             }else{
                 next(new CredentialsInCorrect())
             }
         }else{
             next(new CredentialsInCorrect())
         }
+    }
+
+    private async createToken(user : User):Promise<TokenData>{
+        const dataToStoreToken : DataStoredInToken = {
+            _id : user._id
+        }
+        const secret = 'secretToSign'
+        let token = await jwt.sign(dataToStoreToken, secret);
+        return { token : token , expiresIn : 60 * 60 }
     }
 }
