@@ -59,8 +59,9 @@ export default class AuthenticationController implements controllerInterface{
         const dataToStoreToken : DataStoredInToken = {
             _id : user._id
         }
-        const secret = 'secretToSign'
-        let token = await jwt.sign(dataToStoreToken, secret);
-        return { token : token , expiresIn : 60 * 60 }
+        let expiresIn = 60 * 60;
+        const secret = process.env.JWTSECRET;
+        let token = await jwt.sign(dataToStoreToken, secret, { expiresIn });
+        return { token : token , expiresIn : expiresIn }
     }
 }

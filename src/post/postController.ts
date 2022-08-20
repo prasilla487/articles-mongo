@@ -2,7 +2,7 @@ import * as express from 'express';
 import { Post, controllerInterface } from '../interfaces';
 import { postModel } from '../models';
 import { PostNotFoundException } from '../exceptions';
-import { validationMiddleware } from '../middlewares';
+import { validationMiddleware , authMiddleware } from '../middlewares';
 import { CreatePostDto } from './post.dto'
 
 export default class PostController implements controllerInterface{
@@ -14,11 +14,11 @@ export default class PostController implements controllerInterface{
     }
 
     public initilizeRoutes(){
-        this.router.get(this.path, this.getAllPosts);
-        this.router.post(this.path, validationMiddleware(CreatePostDto), this.createPost);
-        this.router.get(`${this.path}/:id`, this.getPostById);
-        this.router.patch(`${this.path}/:id`, validationMiddleware(CreatePostDto, true), this.updatePost);
-        this.router.delete(`${this.path}/:id`, this.deletePost);
+        this.router.get(this.path, authMiddleware ,this.getAllPosts);
+        this.router.post(this.path, authMiddleware ,validationMiddleware(CreatePostDto), this.createPost);
+        this.router.get(`${this.path}/:id`,authMiddleware ,this.getPostById);
+        this.router.patch(`${this.path}/:id`, authMiddleware , validationMiddleware(CreatePostDto, true), this.updatePost);
+        this.router.delete(`${this.path}/:id`,authMiddleware , this.deletePost);
     }
 
     getAllPosts = (request : express.Request , response : express.Response) => {
