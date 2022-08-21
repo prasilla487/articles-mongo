@@ -1,8 +1,8 @@
 import * as express from 'express';
-import { Post, controllerInterface } from '../interfaces';
+import { Post, controllerInterface , RequestWithUser } from '../interfaces';
 import { postModel } from '../models';
 import { PostNotFoundException } from '../exceptions';
-import { validationMiddleware } from '../middlewares';
+import { validationMiddleware , authMiddleware } from '../middlewares';
 import { CreatePostDto } from './post.dto'
 
 export default class PostController implements controllerInterface{
@@ -14,38 +14,35 @@ export default class PostController implements controllerInterface{
     }
 
     public initilizeRoutes(){
-        this.router.get(this.path, this.getAllPosts);
-        this.router.post(this.path, validationMiddleware(CreatePostDto), this.createPost);
-        this.router.get(`${this.path}/:id`, this.getPostById);
-        this.router.patch(`${this.path}/:id`, validationMiddleware(CreatePostDto, true), this.updatePost);
-        this.router.delete(`${this.path}/:id`, this.deletePost);
+        this.router.get(this.path, authMiddleware ,this.getAllPosts);
+        this.router.post(this.path, authMiddleware ,validationMiddleware(CreatePostDto), this.createPost);
+        this.router.get(`${this.path}/:id`,authMiddleware ,this.getPostById);
+        this.router.patch(`${this.path}/:id`, authMiddleware , validationMiddleware(CreatePostDto, true), this.updatePost);
+        this.router.delete(`${this.path}/:id`,authMiddleware , this.deletePost);
     }
 
-    getAllPosts = (request : express.Request , response : express.Response) => {
-        postModel.find().then((posts) => {
-            response.send(posts);
-        })
+    getAllPosts = async (request : express.Request , response : express.Response) => {
+        let posts = await postModel.find().populate('author', '-password')
+        response.send(posts);
     }
 
-    createPost = (request : express.Request , response : express.Response) => {
+    createPost = async (request : RequestWithUser , response : express.Response) => {
         let post : Post = request.body;
-        let createdPost = new postModel(post);
-        createdPost.save()
-        .then((postResponse) => {
-            response.send(postResponse)
-        })
+        let createdPost = new postModel({ ...post, author : request.user._id}) ;
+        let savedPost = await createdPost.save()
+        await savedPost.populate('author', '-password')
+        response.send(savedPost);   
     }
 
-    public getPostById(request : express.Request , response : express.Response , next : express.NextFunction){
+    public async getPostById(request : express.Request , response : express.Response , next : express.NextFunction){
         let id = request.params.id;
-        postModel.findOne({_id : id}).then((post) => {
-            if(post){
-                response.send(post);
-            }
-            else{
-                next(new PostNotFoundException(id))
-            }
-        })
+        let post = await postModel.findOne({_id : id}).populate('author', '-password')
+        if(post){
+            response.send(post);
+        }
+        else{
+            next(new PostNotFoundException(id))
+        }
     }
 
     public updatePost(request : express.Request, response : express.Response){
